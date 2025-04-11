@@ -1,12 +1,13 @@
 import sys
 import os
+import random
 from PySide6.QtWidgets import (
     QApplication, QMainWindow, QWidget, QVBoxLayout, 
     QHBoxLayout, QLabel, QLineEdit, QPushButton, 
-    QScrollArea, QFileDialog, QMessageBox
+    QScrollArea, QFileDialog
 )
-from PySide6.QtGui import QPixmap, QFont
-from PySide6.QtCore import Qt
+from PySide6.QtGui import QPixmap, QFont, QMovie
+from PySide6.QtCore import Qt, QTimer
 from graphviz import Digraph
 
 from NFA_CODE import regex_to_nfa, visualize_nfa
@@ -18,36 +19,47 @@ class NFAConverterGUI(QMainWindow):
         self.setWindowTitle("Regex to NFA")
         self.setGeometry(100, 100, 900, 600)
         
-      
+        # Main widget and layout
         main_widget = QWidget()
         main_layout = QVBoxLayout(main_widget)
         
+        # Group for input and buttons (to be centered)
+        input_button_group = QHBoxLayout()
         
- # Input section
-        input_layout = QHBoxLayout()
-      
+        # Input field
         self.regex_input = QLineEdit()
-        self.regex_input.setFont(QFont('Arial', 16))
+        self.regex_input.setFont(QFont('Arial', 16))  # Font for the input text
+        placeholder_font = QFont('Arial', 12)
         self.regex_input.setPlaceholderText("Enter regex")
+        self.regex_input.setFont(placeholder_font)
+        self.regex_input.setStyleSheet("QLineEdit { font: 16pt 'Arial'; }")  # Input text font
+        self.regex_input.setFixedSize(300, 70)  # Width: 300px, Height: 70px
+        input_button_group.addWidget(self.regex_input)
+        
+        # Button section (stacked vertically, to the right of the input field)
+        button_layout = QVBoxLayout()
         convert_button = QPushButton("Convert to NFA")
         convert_button.clicked.connect(self.convert_regex)
-        input_layout.addWidget(self.regex_input)
-        input_layout.addWidget(convert_button)
-        
-        # Clear button 
-        clear_layout = QHBoxLayout()
+        convert_button.setFixedWidth(150)
         clear_button = QPushButton("Clear")
         clear_button.clicked.connect(self.clear_all)
-        clear_button.setFixedWidth(100)  
-        clear_layout.addStretch()  
-        clear_layout.addWidget(clear_button)
-        clear_layout.addStretch()  
+        clear_button.setFixedWidth(150)
+        button_layout.addWidget(convert_button)
+        button_layout.addWidget(clear_button)
+        button_layout.setSpacing(10)  # Spacing between buttons
+        input_button_group.addLayout(button_layout)
+        
+        # Center the entire group (input + buttons)
+        group_wrapper = QHBoxLayout()
+        group_wrapper.addStretch()
+        group_wrapper.addLayout(input_button_group)
+        group_wrapper.addStretch()
         
         # Output section
         output_section = QWidget()
         output_layout = QHBoxLayout(output_section)
         
-        # Image display 
+        # Image display area with scroll
         self.image_scroll = QScrollArea()
         self.image_scroll.setWidgetResizable(True)
         self.image_label = QLabel()
@@ -55,52 +67,172 @@ class NFAConverterGUI(QMainWindow):
         self.image_scroll.setWidget(self.image_label)
         output_layout.addWidget(self.image_scroll)
         
-        #####################
-        main_layout.addLayout(input_layout)
-        main_layout.addLayout(clear_layout)  
-        main_layout.addWidget(output_section)
+        # Add a label for the "Waiting for an input" text
+        self.waiting_label = QLabel("Waiting for an input", self.image_label)
+        self.waiting_label.setFont(QFont('Arial', 16))
+        self.waiting_label.setStyleSheet("color: white; background: transparent;")  # Fixed white color
+        self.waiting_label.hide()  # Hide initially
         
-    
+        # Add a label for error messages
+        self.error_label = QLabel("", self.image_label)
+        self.error_label.setFont(QFont('Arial', 14))
+        self.error_label.setStyleSheet("color: red; background: transparent;")
+        self.error_label.setWordWrap(True)
+        self.error_label.setAlignment(Qt.AlignCenter)
+        self.error_label.hide()  # Hide initially
+        # Position the error label in the center of the image area
+        self.error_label.setGeometry(0, 0, self.image_label.width(), self.image_label.height())
+        
+        # Timer for moving the "Waiting for an input" text
+        self.timer = QTimer(self)
+        self.timer.timeout.connect(self.move_waiting_text)
+        self.timer.start(50)  # Update every 50ms for smooth movement
+        
+        # Timer for the 5-second loading delay
+        self.loading_timer = QTimer(self)
+        self.loading_timer.setSingleShot(True)  # Run only once
+        self.loading_timer.timeout.connect(self.show_nfa_result)
+        
+        # Variables for text movement
+        self.text_x = 0
+        self.text_y = 0
+        self.dx = 5  # Speed in x direction
+        self.dy = 5  # Speed in y direction
+        
+        # Add sections to main layout
+        main_layout.addLayout(group_wrapper)  # Centered input and buttons
+        main_layout.addWidget(output_section)  # Image scroll area at the bottom
+        
         self.setCentralWidget(main_widget)
     
         # Initialize variables
         self.current_nfa_image_path = None
+        self.movie = None  # For the GIF
+        self.nfa_result = None  # To store the NFA result during loading
+    
+    def move_waiting_text(self):
+        # Show the waiting label if no image, GIF, or error message is displayed
+        if not self.image_label.pixmap() and (self.movie is None or not self.movie.isValid()) and not self.error_label.isVisible():
+            self.waiting_label.show()
+        else:
+            self.waiting_label.hide()
+            return
+        
+        # Get the size of the image label (the area where the text will move)
+        label_size = self.image_label.size()
+        text_size = self.waiting_label.size()
+        
+        # Update position
+        self.text_x += self.dx
+        self.text_y += self.dy
+        
+        # Bounce off the edges
+        if self.text_x <= 0 or self.text_x + text_size.width() >= label_size.width():
+            self.dx = -self.dx  # Reverse direction
+            self.text_x = max(0, min(self.text_x, label_size.width() - text_size.width()))
+        if self.text_y <= 0 or self.text_y + text_size.height() >= label_size.height():
+            self.dy = -self.dy  # Reverse direction
+            self.text_y = max(0, min(self.text_y, label_size.height() - text_size.height()))
+        
+        # Move the text
+        self.waiting_label.move(int(self.text_x), int(self.text_y))
+    
+    def show_error_message(self, message):
+        # Clear any existing image or GIF
+        self.image_label.clear()
+        if self.movie:
+            self.movie.stop()
+            self.movie = None
+        
+        # Show the error message
+        self.error_label.setText(message)
+        self.error_label.show()
+        # Update the geometry to center the error message
+        label_size = self.image_label.size()
+        self.error_label.setGeometry(0, 0, label_size.width(), label_size.height())
+    
+    def show_gif(self, gif_path):
+        # Stop any existing GIF
+        if self.movie:
+            self.movie.stop()
+        # Clear any existing error message or image
+        self.error_label.hide()
+        self.image_label.clear()
+        # Display the GIF
+        absolute_path = os.path.abspath(gif_path)
+        print(f"Attempting to load GIF from: {absolute_path}")  # Debug output
+        if not os.path.exists(absolute_path):
+            print(f"GIF file not found at: {absolute_path}")
+            self.show_error_message(f"GIF file not found: {gif_path}")
+            return False
+        self.movie = QMovie(gif_path)
+        if self.movie.isValid():
+            print("GIF loaded successfully, starting playback.")  # Debug output
+            self.image_label.setMovie(self.movie)
+            self.movie.start()
+            return True
+        else:
+            print("Failed to load GIF.")  # Debug output
+            self.show_error_message(f"Failed to load GIF: {gif_path}")
+            return False
+    
+    def show_nfa_result(self):
+        # Stop the loading GIF
+        if self.movie:
+            self.movie.stop()
+            self.movie = None
+        self.image_label.clear()
+        # Ensure the error label is hidden before showing the NFA result
+        self.error_label.hide()
+        
+        # Display the NFA result (or error) that was computed during the loading period
+        if self.nfa_result is None:
+            self.show_error_message("Failed to convert regex to NFA. Check your regex syntax.")
+        elif self.current_nfa_image_path is None:
+            self.show_error_message("Visualization failed: No image path returned. Check if Graphviz is installed and if the output directory is writable.")
+        elif os.path.exists(self.current_nfa_image_path):
+            pixmap = QPixmap(self.current_nfa_image_path)
+            if pixmap.isNull():
+                self.show_error_message("Failed to load the generated image. The file might be corrupted.")
+            else:
+                self.image_label.setPixmap(pixmap)
+                self.image_label.adjustSize()
+        else:
+            self.show_error_message(f"Image file not found at: {self.current_nfa_image_path}")
     
     def convert_regex(self):
         regex = self.regex_input.text().strip()
         if not regex:
-            QMessageBox.warning(self, "Input Error", "Please enter a regular expression.")
-            return
+            self.show_gif('error.gif')  # Show funny error GIF for empty input
+            return 
         
+        # Clear any GIF or error message if present
+        if self.movie:
+            self.movie.stop()
+            self.movie = None
+        self.error_label.hide()
+        self.image_label.clear()
+        
+        # Show the loading GIF and start the 5-second timer
+        if self.show_gif("loading.gif"):
+            self.loading_timer.start(5000)  # 5000ms = 5 seconds
+        else:
+            self.loading_timer.start(2000)  # Shorter delay if GIF fails to load
+        
+        # Compute the NFA result in the background
         try:
             # Convert regex to NFA
-            nfa = regex_to_nfa(regex)
-            if nfa is None:
-                QMessageBox.warning(self, "Error", "Failed to convert regex to NFA. Check your regex syntax.")
-                return
+            self.nfa_result = regex_to_nfa(regex)
+            if self.nfa_result is None:
+                return  # Error will be shown after loading
             
             # Visualize NFA
-            self.current_nfa_image_path = visualize_nfa(nfa, "nfa_output")
+            self.current_nfa_image_path = visualize_nfa(self.nfa_result, "nfa_output")
             
-            # Check if the path is None
-            if self.current_nfa_image_path is None:
-                QMessageBox.warning(self, "Error", "Visualization failed: No image path returned. Check if Graphviz is installed and if the output directory is writable.")
-                return
-                
-            # Display the image
-            if os.path.exists(self.current_nfa_image_path):
-                pixmap = QPixmap(self.current_nfa_image_path)
-                if pixmap.isNull():
-                    QMessageBox.warning(self, "Error", "Failed to load the generated image. The file might be corrupted.")
-                    return
-                self.image_label.setPixmap(pixmap)
-                self.image_label.adjustSize()
-            else:
-                QMessageBox.warning(self, "Error", f"Image file not found at: {self.current_nfa_image_path}")
-        
         except Exception as e:
-            QMessageBox.warning(self, "Error", f"An error occurred: {str(e)}")
-            self.image_label.clear()
+            self.nfa_result = None  # Indicate an error
+            self.current_nfa_image_path = None
+            print(f"Error during NFA conversion: {str(e)}")  # Debug output
     
     def save_image(self):
         if self.current_nfa_image_path:
@@ -110,14 +242,25 @@ class NFAConverterGUI(QMainWindow):
             if file_path:
                 pixmap = QPixmap(self.current_nfa_image_path)
                 pixmap.save(file_path)
-                QMessageBox.information(self, "Save Successful", f"Image saved to {file_path}")
+                # Show success message in the image area
+                self.image_label.clear()
+                self.show_error_message(f"Image saved to {file_path}")
         else:
-            QMessageBox.warning(self, "No Image", "No NFA image to save. Convert a regex first.")
+            self.show_error_message("No NFA image to save. Convert a regex first.")
        
     def clear_all(self):
         self.regex_input.clear()
         self.image_label.clear()
         self.current_nfa_image_path = None
+        self.nfa_result = None
+        self.error_label.hide()
+        # Stop any GIF if present
+        if self.movie:
+            self.movie.stop()
+            self.movie = None
+        # Stop the loading timer if it's running
+        if self.loading_timer.isActive():
+            self.loading_timer.stop()
 
 def main():
     app = QApplication(sys.argv)
