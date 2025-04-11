@@ -1,2 +1,6 @@
-# regex_to_NFA
+# regex to NFA
+
+
+
+
 regex_to_NFA
