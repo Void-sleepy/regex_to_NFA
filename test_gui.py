@@ -67,7 +67,7 @@ class NFAConverterGUI(QMainWindow):
         output_layout.addWidget(self.image_scroll)
         
         # Add a label for the "Waiting for an input" text
-        self.waiting_label = QLabel("Waiting for an input", self.image_label)
+        self.waiting_label = QLabel("NFA", self.image_label)
         self.waiting_label.setFont(QFont('Arial', 16))
         self.waiting_label.setStyleSheet("color: white; background: transparent;")
         self.waiting_label.hide()  
@@ -117,6 +117,9 @@ class NFAConverterGUI(QMainWindow):
             self.waiting_label.hide()
             return
         
+        # Update the label size to match the current text
+        self.waiting_label.adjustSize()
+
         # Get the size of the image label (the area where the text will move)
         label_size = self.image_label.size()
         text_size = self.waiting_label.size()
@@ -237,7 +240,7 @@ class NFAConverterGUI(QMainWindow):
             print(f"Error during NFA conversion: {str(e)}") 
     
     def reset_waiting_label(self):
-        self.waiting_label.setText("Waiting for an input")
+        self.waiting_label.setText("NFA")
         self.waiting_label.setStyleSheet("color: white; background: transparent; font: 16px 'Arial';")
     
     def save_image(self):
@@ -268,7 +271,7 @@ class NFAConverterGUI(QMainWindow):
         if self.loading_timer.isActive():
             self.loading_timer.stop()
         # Reset waiting label
-        self.waiting_label.setText("Waiting for an input")
+        self.waiting_label.setText("NFA")
         self.waiting_label.setStyleSheet("color: white; background: transparent; font: 16px 'Arial';")
     
 def main():
