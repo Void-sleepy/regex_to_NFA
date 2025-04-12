@@ -12,7 +12,6 @@ from graphviz import Digraph
 
 from NFA_CODE import regex_to_nfa, visualize_nfa
 
-
 class NFAConverterGUI(QMainWindow):
     def __init__(self):
         super().__init__()
@@ -203,9 +202,12 @@ class NFAConverterGUI(QMainWindow):
     def convert_regex(self):
         regex = self.regex_input.text().strip()
         if not regex:
-            self.show_gif('error.gif')  
+            self.waiting_label.setText("String is empty")
+            self.waiting_label.setStyleSheet("color: red; background: transparent; font: 16px 'Arial';")
+            self.waiting_label.show()
+            QTimer.singleShot(2000, self.reset_waiting_label)  # Reset after 2 seconds
             return 
-        
+
         # Clear any GIF or error message if present
         if self.movie:
             self.movie.stop()
@@ -234,6 +236,10 @@ class NFAConverterGUI(QMainWindow):
             self.current_nfa_image_path = None
             print(f"Error during NFA conversion: {str(e)}") 
     
+    def reset_waiting_label(self):
+        self.waiting_label.setText("Waiting for an input")
+        self.waiting_label.setStyleSheet("color: white; background: transparent; font: 16px 'Arial';")
+    
     def save_image(self):
         if self.current_nfa_image_path:
             file_path, _ = QFileDialog.getSaveFileName(
@@ -261,7 +267,10 @@ class NFAConverterGUI(QMainWindow):
         # Stop the loading timer if it's running
         if self.loading_timer.isActive():
             self.loading_timer.stop()
-
+        # Reset waiting label
+        self.waiting_label.setText("Waiting for an input")
+        self.waiting_label.setStyleSheet("color: white; background: transparent; font: 16px 'Arial';")
+    
 def main():
     app = QApplication(sys.argv)
     window = NFAConverterGUI()
