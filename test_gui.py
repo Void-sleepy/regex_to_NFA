@@ -66,7 +66,7 @@ class NFAConverterGUI(QMainWindow):
         self.image_scroll.setWidget(self.image_label)
         output_layout.addWidget(self.image_scroll)
         
-        # Add a label for the "Waiting for an input" text
+        # Add a label for the "NFA" text
         self.waiting_label = QLabel("NFA", self.image_label)
         self.waiting_label.setFont(QFont('Arial', 16))
         self.waiting_label.setStyleSheet("color: white; background: transparent;")
@@ -82,10 +82,10 @@ class NFAConverterGUI(QMainWindow):
         # Position the error label in the center of the image area
         self.error_label.setGeometry(0, 0, self.image_label.width(), self.image_label.height())
         
-        # Timer for moving the "Waiting for an input" text
+        # Timer for moving the "NFA" text
         self.timer = QTimer(self)
         self.timer.timeout.connect(self.move_waiting_text)
-        self.timer.start(50)  
+        self.timer.start(16) #60 Frames  
         
         # Timer for the 5-second loading delay
         self.loading_timer = QTimer(self)
@@ -95,8 +95,8 @@ class NFAConverterGUI(QMainWindow):
         # Variables for text movement
         self.text_x = 0
         self.text_y = 0
-        self.dx = 5 
-        self.dy = 5 
+        self.dx = 2
+        self.dy = 2 
         
         # Add sections to main layout
         main_layout.addLayout(group_wrapper)  # Centered input and buttons
@@ -119,6 +119,11 @@ class NFAConverterGUI(QMainWindow):
         
         # Update the label size to match the current text
         self.waiting_label.adjustSize()
+
+        # Ensure font size remains 16px
+        font = self.waiting_label.font()
+        font.setPointSize(16)
+        self.waiting_label.setFont(font)
 
         # Get the size of the image label (the area where the text will move)
         label_size = self.image_label.size()
@@ -206,7 +211,7 @@ class NFAConverterGUI(QMainWindow):
         regex = self.regex_input.text().strip()
         if not regex:
             self.waiting_label.setText("String is empty")
-            self.waiting_label.setStyleSheet("color: red; background: transparent; font: 16px 'Arial';")
+            self.waiting_label.setStyleSheet("color: red; background: transparent;")
             self.waiting_label.show()
             QTimer.singleShot(2000, self.reset_waiting_label)  # Reset after 2 seconds
             return 
@@ -241,8 +246,10 @@ class NFAConverterGUI(QMainWindow):
     
     def reset_waiting_label(self):
         self.waiting_label.setText("NFA")
-        self.waiting_label.setStyleSheet("color: white; background: transparent; font: 16px 'Arial';")
-    
+        self.waiting_label.setStyleSheet("color: white; background: transparent;")  	
+        font = QFont('Arial', 16)
+        self.waiting_label.setFont(font)
+
     def save_image(self):
         if self.current_nfa_image_path:
             file_path, _ = QFileDialog.getSaveFileName(
@@ -272,7 +279,9 @@ class NFAConverterGUI(QMainWindow):
             self.loading_timer.stop()
         # Reset waiting label
         self.waiting_label.setText("NFA")
-        self.waiting_label.setStyleSheet("color: white; background: transparent; font: 16px 'Arial';")
+        self.waiting_label.setStyleSheet("color: white; background: transparent;") 	
+        font = QFont('Arial', 16)
+        self.waiting_label.setFont(font)
     
 def main():
     app = QApplication(sys.argv)
